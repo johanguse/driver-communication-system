@@ -1,0 +1,1583 @@
+{
+  "name": "WhatsApp Driver Assistant - MVP",
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.APP_API_URL}}/drivers/{{$('Driver Lookup').first().json.id}}/orders/confirm",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "order_ref",
+              "value": "={{ $('AI Agent • Interpret Reply').first().json.order_ref ?? '' }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 5000
+        }
+      },
+      "id": "5e4fe1f7-78c7-441f-b2c7-d390c9ba925e",
+      "name": "Confirm Order (APP API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1040,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.EVOLUTION_API_URL}}/message/send",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{$('Driver Lookup').first().json.phone}}"
+            },
+            {
+              "name": "text",
+              "value": "={{`Your order ${$('AI Agent • Interpret Reply').first().json.order_ref ?? ''} is confirmed.`}}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "f337c7e3-a273-4d86-a2b5-f5c3a6e15ced",
+      "name": "Send Order Confirmation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -768,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (driver_id, message_id, direction, content, metadata, created_at) VALUES (={{$('Driver Lookup').first().json.id}}, ={{`out-order-confirm-${Date.now()}`}}, 'outgoing', 'Order confirmed.', ={{JSON.stringify($json)}}, NOW()) RETURNING id",
+        "options": {}
+      },
+      "id": "a2c82984-e830-4595-b923-b262c4f32b07",
+      "name": "Log Order Confirm Message",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -512,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "id": "94ac14d6-551a-4aa3-b3d5-6131a0f18b58",
+      "name": "09:00 Daily Broadcast",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -3552,
+        -1312
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_API_URL}}/drivers/assignments/today",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "55bbb7b9-9871-45d7-9627-780f875f861a",
+      "name": "Fetch Today's Assignments",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -3312,
+        -1312
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "9764cf67-c7bc-4296-9988-558b78c29c62",
+      "name": "Loop Drivers",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -3072,
+        -1520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const driver = $input.first().json;\nconst text = `Good morning ${driver.name}!\\nYou have ${driver.order_count} deliveries today.\\nReply 1 to accept or 2 to decline.`;\nreturn [{ json: { driver, message: text } }];"
+      },
+      "id": "1a1a4321-87c3-4b8c-9e06-d54ad438ba18",
+      "name": "Compose Morning Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2720,
+        -1488
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "sendText"
+      },
+      "id": "50030c02-d4c5-4d25-8b1b-2a58fc5d7e35",
+      "name": "Send Broadcast (Evolution)",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -2480,
+        -1488
+      ],
+      "credentials": {
+        "evolutionApi": {
+          "id": "sDVTxpXU25nSbkKk",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO driver_broadcasts (driver_id, message, created_at) VALUES (={{$json.driver.id}}, ={{$json.message}}, NOW()) RETURNING id",
+        "options": {}
+      },
+      "id": "66e3982b-7563-4577-abf6-2dcedeaae200",
+      "name": "Log Broadcast",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -2288,
+        -1408
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "evolution-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "7d328a33-5ac1-43fe-ba92-0a04dce25627",
+      "name": "Evolution Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -3552,
+        -848
+      ],
+      "webhookId": "evolution-driver-mvp"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, name, phone, email FROM drivers WHERE phone = ={{$json.from}} LIMIT 1",
+        "options": {}
+      },
+      "id": "41d7f5ba-a7f0-47af-b7f9-562b401b58d4",
+      "name": "Driver Lookup",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -3360,
+        -848
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (driver_id, message_id, direction, content, metadata, created_at) VALUES (={{$('Driver Lookup').first().json.id}}, ={{$json.messageId}}, 'incoming', ={{$json.message}}, ={{JSON.stringify($json.metadata)}}, NOW()) RETURNING id",
+        "options": {}
+      },
+      "id": "9f9415d9-aacb-4936-8f0a-a2acf30511a9",
+      "name": "Save Incoming Message",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -2816,
+        -912
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Driver reply: {{ $json.message }}\nDriver: {{ $('Driver Lookup').first().json.name ?? 'Driver' }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a logistics assistant. Classify the driver's message intent.\n\nRETURN ONLY valid JSON:\n{\"intent\":\"accept|decline|nextOrder|humanHelp|orderConfirm|unknown\",\"order_ref\":\"string or null\",\"human_reply\":\"Friendly 1-sentence response\",\"needs_data\":true|false}\n\nIntent Classification:\n- \"accept\" - Driver accepts all deliveries for today (e.g., \"1\", \"yes\", \"ok\", \"accept all\")\n- \"decline\" - Driver declines/refuses the route (e.g., \"2\", \"no\", \"can't\", \"decline\")\n- \"nextOrder\" - Asks about the next delivery or stop (e.g., \"next order?\", \"what's my first stop?\")\n- \"humanHelp\" - Needs human assistance (e.g., \"talk to dispatch\", \"I have a question\", \"help\")\n- \"orderConfirm\" - Driver is confirming a specific order/stop (e.g., \"confirm order 3\", \"ok I take #1023\")\n- \"unknown\" - Unclear intent\n\nRules:\n- order_ref: when intent is \"orderConfirm\", extract the most likely order reference (stop number or order id) as a short string; otherwise use null\n- human_reply: Contextual response (1 sentence)\n- needs_data: true if intent requires API data (accept, nextOrder, orderConfirm), false otherwise\n\nReturn ONLY the JSON object, no other text."
+        }
+      },
+      "id": "757bd5a6-1060-450f-86ee-2547c01ffcb4",
+      "name": "AI Agent • Interpret Reply",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -2176,
+        -1072
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "maxTokens": 150,
+          "temperature": 0.1
+        }
+      },
+      "id": "b55150bc-6292-4038-bdd2-1ba90f33b7ab",
+      "name": "OpenRouter Decision Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -2176,
+        -848
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "Ut7OyiM23mdOh0VD",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "accept",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "accept"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "decline",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "decline"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "nextOrder",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "nextOrder"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "humanHelp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "humanHelp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "orderConfirm",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "orderConfirm"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "rightValue": "unknown",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "clarify"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ac392aa6-29be-40fb-ad3b-cc3fae27be54",
+      "name": "Branch on Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -1696,
+        -848
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_API_URL}}/drivers/{{$('Driver Lookup').first().json.id}}/orders/today",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 5000
+        }
+      },
+      "id": "ec1c55f7-bd11-4c36-9d12-8efd35706415",
+      "name": "Fetch Orders (APP API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1040,
+        -1280
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Driver {{ $('Driver Lookup').first().json.name }} has accepted today's deliveries.\n\nOrders:\n{{ JSON.stringify($json.orders ?? $json, null, 2) }}\n\nConfirm acceptance and list the next 2-3 deliveries with time and address. Keep it under 600 characters.",
+        "options": {}
+      },
+      "id": "be5d793f-e0fd-4cae-a8a2-fa7dd14062ac",
+      "name": "AI Agent • Compose Summary",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -864,
+        -1280
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "maxTokens": 300,
+          "temperature": 0.4
+        }
+      },
+      "id": "8e9c7419-68a9-4724-b97a-47b8e01bf1b4",
+      "name": "OpenRouter Summary Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        -1104
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "Ut7OyiM23mdOh0VD",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.DISPATCH_WEBHOOK_URL}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "driver_id",
+              "value": "={{$('Driver Lookup').first().json.id}}"
+            },
+            {
+              "name": "driver_name",
+              "value": "={{$('Driver Lookup').first().json.name}}"
+            },
+            {
+              "name": "action",
+              "value": "declined"
+            },
+            {
+              "name": "reason",
+              "value": "={{$json.human_reply}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "07ad4c34-05cd-4fa6-bf30-0027490b599e",
+      "name": "Notify Dispatch (Decline)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1040,
+        -528
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "sendText"
+      },
+      "id": "d1064a59-1edf-4a4a-8784-2eea381dd278",
+      "name": "Send Decline Confirmation",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -448,
+        -528
+      ],
+      "credentials": {
+        "evolutionApi": {
+          "id": "sDVTxpXU25nSbkKk",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE driver_broadcasts SET declined_at = NOW(), decline_reason = ={{$json.human_reply}} WHERE driver_id = ={{$('Driver Lookup').first().json.id}} AND DATE(created_at) = CURRENT_DATE",
+        "options": {}
+      },
+      "id": "89445378-5c85-4023-bd49-0d514b50fdae",
+      "name": "Log Decline",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -816,
+        -528
+      ]
+    },
+    {
+      "parameters": {
+        "guardrails": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.guardrails",
+      "typeVersion": 1,
+      "position": [
+        -2464,
+        -912
+      ],
+      "id": "1f3b9a76-046d-4dd4-bd9b-0fcf424ba131",
+      "name": "Guardrails (Input)"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "maxTokens": 100,
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -2464,
+        -688
+      ],
+      "id": "3bf6ea00-aadc-4588-9e68-8f143c950228",
+      "name": "OpenRouter Guardrail Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "Ut7OyiM23mdOh0VD",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "### 🌅 Morning Broadcast Flow\n- **09:00 Scheduler** triggers daily\n- Fetches today's assignments from APP API\n- Loops through each driver\n- Composes personalized message\n- **Guardrails** sanitize output (mask PII, strip URLs)\n- Send via Evolution API\n- Log to Postgres for audit trail",
+        "height": 192,
+        "width": 400,
+        "color": 4
+      },
+      "id": "864913b4-cb17-4800-8893-4ea5f13b1141",
+      "name": "Sticky • Broadcast",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4128,
+        -1408
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 📱 WhatsApp Ingestion\n- Evolution webhook receives driver replies\n- Parse & normalize payload\n- Instantly respond 200 OK to webhook\n- **Guardrails (Input)** protect against:\n  - Prompt injection attacks\n  - Profanity\n  - Sensitive data leakage\n- Lookup driver in database\n- Save raw message for audit",
+        "height": 244,
+        "width": 420,
+        "color": 5
+      },
+      "id": "8756ba7d-bc4f-4cd7-96bb-2f273213375c",
+      "name": "Sticky • Ingestion",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -4144,
+        -976
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🤖 AI Processing & Multi-Intent Routing\n- **AI Agent** interprets driver message using OpenRouter gpt-5-mini\n- Returns structured JSON: {intent, human_reply, needs_data}\n- **5-way routing** based on intent:\n  - ✅ **Accept**: Fetch all orders → AI summary → Send confirmation\n  - ❌ **Decline**: Email dispatch → Send acknowledgment → Log\n  - 📍 **Next Order**: Fetch next delivery → AI details → Send\n  - 👤 **Human Help**: Notify dispatch (high priority) → Confirmation\n  - ❓ **Unknown**: Request clarification\n- All interactions logged to Postgres",
+        "height": 240,
+        "width": 520,
+        "color": 6
+      },
+      "id": "70cb3815-fae1-4f06-b34a-c9c9340bea21",
+      "name": "Sticky • AI Processing",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2464,
+        -432
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🛡️ Security with Guardrails\n**Input Protection:**\n- Block prompt injection\n- Filter profanity\n- Mask sensitive data\n\n**Output Sanitization:**\n- Mask PII before sending\n- Strip tracking URLs\n- Ensure safe content\n\n**OpenRouter Models** power the guardrails with AI-based content filtering.",
+        "height": 292,
+        "width": 380,
+        "color": 3
+      },
+      "id": "b1606e8b-bcd2-4e04-87df-7b3b412fbc56",
+      "name": "Sticky • Security",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2992,
+        -464
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "driver-exists-check",
+              "leftValue": "={{ $('Driver Lookup').item.json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "any",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3152,
+        -848
+      ],
+      "id": "de60312d-5f0c-4974-8be2-04e49b7793ae",
+      "name": "Check Driver Exists"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "sendText"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -2928,
+        -672
+      ],
+      "id": "8d2cbd32-92c1-4604-8926-c70e98b30e7f",
+      "name": "Send Driver Not Found Message",
+      "credentials": {
+        "evolutionApi": {
+          "id": "sDVTxpXU25nSbkKk",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "sendText"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -2144,
+        -672
+      ],
+      "id": "f37be517-f43f-4f62-90c1-e3fb4548ce5e",
+      "name": "Send Guardrails Violation Message",
+      "credentials": {
+        "evolutionApi": {
+          "id": "sDVTxpXU25nSbkKk",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "sendText"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        -1280
+      ],
+      "id": "dd9e419f-455e-4638-a95a-46ee1240def6",
+      "name": "Send Acceptance Message (Evolution)",
+      "credentials": {
+        "evolutionApi": {
+          "id": "sDVTxpXU25nSbkKk",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "html": "The user has declined the order of delivery",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [
+        -640,
+        -528
+      ],
+      "id": "7e5b857c-507d-47d5-8cdd-aac8200c6eef",
+      "name": "Send email",
+      "webhookId": "479f2451-cf33-4df7-b656-5647ec8fd0c9"
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_API_URL}}/drivers/{{$json.driver.id}}/orders/next",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 5000
+        }
+      },
+      "id": "aec0a81c-f0e3-4a7c-93c4-d4a78ff7219d",
+      "name": "Fetch Next Order (APP API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1040,
+        -928
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Next order for {{ $json.driver.name }}:\n{{ JSON.stringify($json.order ?? $json, null, 2) }}\n\nProvide delivery time, address, and any special instructions. Keep under 300 characters.",
+        "options": {}
+      },
+      "id": "75168488-5ead-416d-ab94-e24dfa474903",
+      "name": "AI Agent • Compose Next Order",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -848,
+        -928
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "maxTokens": 200,
+          "temperature": 0.3
+        }
+      },
+      "id": "0d35b00d-b087-47f5-81a7-d52e9c12c2cd",
+      "name": "OpenRouter Next Order Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -848,
+        -752
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "Ut7OyiM23mdOh0VD",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "sendText"
+      },
+      "id": "e9bb147f-ac98-4022-a680-7a334e5df712",
+      "name": "Send Next Order Details",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        -928
+      ],
+      "credentials": {
+        "evolutionApi": {
+          "id": "sDVTxpXU25nSbkKk",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.DISPATCH_WEBHOOK_URL}}",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "driver_id",
+              "value": "={{$json.driver.id}}"
+            },
+            {
+              "name": "driver_name",
+              "value": "={{$json.driver.name}}"
+            },
+            {
+              "name": "driver_phone",
+              "value": "={{$json.driver.phone}}"
+            },
+            {
+              "name": "action",
+              "value": "request_human_help"
+            },
+            {
+              "name": "message",
+              "value": "={{$json.human_reply}}"
+            },
+            {
+              "name": "priority",
+              "value": "high"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c0705b1c-035d-4612-b841-bd005ca16a52",
+      "name": "Notify Dispatch (Human Help)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1040,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "sendText"
+      },
+      "id": "96b5e482-1ddd-4e2a-b2fa-31dfde9c5280",
+      "name": "Send Human Help Confirmation",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        -272
+      ],
+      "credentials": {
+        "evolutionApi": {
+          "id": "sDVTxpXU25nSbkKk",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "operation": "sendText"
+      },
+      "id": "12d12c27-f262-4cce-98c7-85721d5649fd",
+      "name": "Send Clarification Request",
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -32
+      ],
+      "credentials": {
+        "evolutionApi": {
+          "id": "sDVTxpXU25nSbkKk",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (driver_id, message_id, direction, content, metadata, created_at) VALUES (={{$json.driver.id}}, ={{`out-accept-${Date.now()}`}}, 'outgoing', ={{$json.output ?? $json.text}}, ={{JSON.stringify($json)}}, NOW()) RETURNING id",
+        "options": {}
+      },
+      "id": "ebf5bd56-0ea0-4930-a12d-4cc8140be171",
+      "name": "Log Acceptance Message",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -336,
+        -1280
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (driver_id, message_id, direction, content, metadata, created_at) VALUES (={{$json.driver.id}}, ={{`out-decline-${Date.now()}`}}, 'outgoing', 'Thanks for letting us know...', ={{JSON.stringify($json)}}, NOW()) RETURNING id",
+        "options": {}
+      },
+      "id": "93278ddd-2881-4d8a-bef2-25f14ad25ddd",
+      "name": "Log Decline Message",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -288,
+        -528
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (driver_id, message_id, direction, content, metadata, created_at) VALUES (={{$json.driver.id}}, ={{`out-next-${Date.now()}`}}, 'outgoing', ={{$json.output ?? $json.text}}, ={{JSON.stringify($json)}}, NOW()) RETURNING id",
+        "options": {}
+      },
+      "id": "c69904ac-39ee-4c68-8194-58ed04ad5091",
+      "name": "Log Next Order Message",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -320,
+        -928
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (driver_id, message_id, direction, content, metadata, created_at) VALUES (={{$json.driver.id}}, ={{`out-help-${Date.now()}`}}, 'outgoing', 'I\\'ve notified dispatch...', ={{JSON.stringify($json)}}, NOW()) RETURNING id",
+        "options": {}
+      },
+      "id": "6add6156-28df-4b75-8e06-01b0fbf7a7ea",
+      "name": "Log Human Help Message",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -624,
+        -272
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT content, metadata, created_at FROM messages WHERE driver_id = ={{$json.driver.id}} AND direction = 'outgoing' AND metadata->>'intent' IS NOT NULL ORDER BY created_at DESC LIMIT 5",
+        "options": {}
+      },
+      "id": "da550707-6b6f-4eb7-870b-048096142eac",
+      "name": "Fetch Driver History (RAG)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1040,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT question, answer, embedding FROM faq_embeddings ORDER BY embedding <-> (SELECT embedding FROM generate_embedding(={{$json.message}})) LIMIT 3",
+        "options": {}
+      },
+      "id": "7b8e10f9-267d-4df4-8047-7d6597f0f855",
+      "name": "Vector Search (pgvector)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -800,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Driver message: {{ $json.message }}\nDriver: {{ $json.driver.name }}\n\nRecent driver history:\n{{ JSON.stringify($('Fetch Driver History (RAG)').all(), null, 2) }}\n\nSimilar questions from knowledge base:\n{{ JSON.stringify($('Vector Search (pgvector)').all(), null, 2) }}\n\nProvide a helpful, contextual response based on past interactions and knowledge base. If still unclear, politely ask driver to rephrase or choose 1 (accept) or 2 (decline).",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "id": "0b17efc3-0856-4684-8131-74c75c308382",
+      "name": "RAG Agent • Smart Clarification",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -624,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5-mini",
+        "options": {
+          "maxTokens": 300,
+          "temperature": 0.4
+        }
+      },
+      "id": "7986742f-4b16-4d5d-8a27-6c42e1ed331d",
+      "name": "OpenRouter RAG Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -624,
+        176
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "Ut7OyiM23mdOh0VD",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO messages (driver_id, message_id, direction, content, metadata, created_at) VALUES (={{$json.driver.id}}, ={{`out-rag-${Date.now()}`}}, 'outgoing', ={{$json.output ?? $json.text}}, ={{JSON.stringify($json)}}, NOW()) RETURNING id",
+        "options": {}
+      },
+      "id": "86a7d60e-0b44-4f7c-a21c-ec10a198e8b4",
+      "name": "Log RAG Response",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -320,
+        -32
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### 🧠 RAG (Retrieval Augmented Generation)\n\n**Smart Clarification for Unknown Intents:**\n\n**Step 1: Retrieve Context**\n- Fetch driver's last 5 interactions from PostgreSQL\n- Vector search FAQ database using pgvector\n- Find semantically similar questions\n\n**Step 2: Generate Response**\n- RAG Agent receives driver history + similar FAQs\n- gpt-5-mini generates contextual answer\n- Falls back to manual clarification if needed\n\n**Benefits:**\n- ✅ Learns from past driver interactions\n- ✅ Reduces \"unknown\" responses over time\n- ✅ Self-improving knowledge base\n- ✅ Lower human escalation rate\n",
+        "height": 432,
+        "width": 520,
+        "color": 2
+      },
+      "id": "15af103f-c30f-45d8-b762-f0b64f96b7d2",
+      "name": "Sticky • RAG Implementation",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.whatsApp",
+      "typeVersion": 1.1,
+      "position": [
+        -416,
+        -272
+      ],
+      "id": "3777ffaa-544a-4ece-94ba-d187cfd674c3",
+      "name": "Send message and wait for response",
+      "webhookId": "76a62754-d54a-427c-841a-fe95cbb05cd3"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "09:00 Daily Broadcast": {
+      "main": [
+        [
+          {
+            "node": "Fetch Today's Assignments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Today's Assignments": {
+      "main": [
+        [
+          {
+            "node": "Loop Drivers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Drivers": {
+      "main": [
+        [
+          {
+            "node": "Compose Morning Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Drivers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Morning Message": {
+      "main": [
+        [
+          {
+            "node": "Send Broadcast (Evolution)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Broadcast (Evolution)": {
+      "main": [
+        [
+          {
+            "node": "Log Broadcast",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Broadcast": {
+      "main": [
+        [
+          {
+            "node": "Loop Drivers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evolution Webhook": {
+      "main": [
+        [
+          {
+            "node": "Driver Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Driver Lookup": {
+      "main": [
+        [
+          {
+            "node": "Check Driver Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Incoming Message": {
+      "main": [
+        [
+          {
+            "node": "Guardrails (Input)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent • Interpret Reply": {
+      "main": [
+        [
+          {
+            "node": "Branch on Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Decision Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent • Interpret Reply",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Branch on Intent": {
+      "main": [
+        [
+          {
+            "node": "Fetch Orders (APP API)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Dispatch (Decline)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Next Order (APP API)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Dispatch (Human Help)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Driver History (RAG)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Confirm Order (APP API)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Orders (APP API)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent • Compose Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent • Compose Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Acceptance Message (Evolution)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Acceptance Message (Evolution)": {
+      "main": [
+        [
+          {
+            "node": "Log Acceptance Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Summary Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent • Compose Summary",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Dispatch (Decline)": {
+      "main": [
+        [
+          {
+            "node": "Log Decline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardrails (Input)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent • Interpret Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Guardrails Violation Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Guardrail Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Guardrails (Input)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Driver Exists": {
+      "main": [
+        [
+          {
+            "node": "Save Incoming Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Driver Not Found Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Decline": {
+      "main": [
+        [
+          {
+            "node": "Send email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send email": {
+      "main": [
+        [
+          {
+            "node": "Send Decline Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Decline Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Log Decline Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Next Order (APP API)": {
+      "main": [
+        [
+          {
+            "node": "AI Agent • Compose Next Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent • Compose Next Order": {
+      "main": [
+        [
+          {
+            "node": "Send Next Order Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Next Order Details": {
+      "main": [
+        [
+          {
+            "node": "Log Next Order Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Next Order Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent • Compose Next Order",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Dispatch (Human Help)": {
+      "main": [
+        [
+          {
+            "node": "Send Human Help Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Human Help Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Log Human Help Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirm Order (APP API)": {
+      "main": [
+        [
+          {
+            "node": "Send Order Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Order Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Log Order Confirm Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Driver History (RAG)": {
+      "main": [
+        [
+          {
+            "node": "Vector Search (pgvector)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vector Search (pgvector)": {
+      "main": [
+        [
+          {
+            "node": "RAG Agent • Smart Clarification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG Agent • Smart Clarification": {
+      "main": [
+        [
+          {
+            "node": "Send Clarification Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter RAG Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "RAG Agent • Smart Clarification",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Clarification Request": {
+      "main": [
+        [
+          {
+            "node": "Log RAG Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Human Help Message": {
+      "main": [
+        [
+          {
+            "node": "Send message and wait for response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "86d4a307-19e0-428e-9769-7965aa056cb8",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "79e1f408fb6bc5962792e2b25c242ed65d5a7bfb7751e14833837a03b2965356"
+  },
+  "id": "WDi8jNwLUjyKFAm9",
+  "tags": []
+}
