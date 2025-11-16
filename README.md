@@ -69,7 +69,7 @@ Open these Excalidraw files at [excalidraw.com](https://excalidraw.com) to view 
 
 ### Choose Production if:
 - You have 50+ drivers (or will soon)
-- You need high uptime
+- You need very high uptime
 - You're handling critical operations
 - You have compliance requirements (GDPR, SOC 2)
 - You have budget

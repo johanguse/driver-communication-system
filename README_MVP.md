@@ -10,14 +10,7 @@ A minimal viable product architecture for WhatsApp-based driver communication. N
 
 **Visual Diagram:** `whatsapp-driver-architecture-MVP.excalidraw`
 
-**Screenshots:**
-- `n8n-workflow-mvp.jpg` – full n8n workflow with all nodes and guardrails.
-- `MVP-FLOW.jpg` – high-level MVP flow (Driver → Evolution API → Fastify/n8n → PostgreSQL/OpenRouter/APP API).
-
-```md
 ![MVP Flow](./MVP-FLOW.jpg)
-![n8n Workflow](./n8n-workflow-mvp.jpg)
-```
 
 **Flow (7 Steps):**
 1. Driver sends or receives a WhatsApp message via Evolution API.
@@ -370,7 +363,7 @@ MVP approach accepts higher per-message AI costs in exchange for reduced infrast
 
 **When to Graduate to Production:**
 - Consistent 50+ active drivers
-- Need 99.9% uptime SLA
+- Need very high uptime SLA
 - Response time consistently >5 seconds
 - Require WhatsApp Business API compliance
 - Budget available for infrastructure scaling
@@ -382,6 +375,8 @@ MVP approach accepts higher per-message AI costs in exchange for reduced infrast
 - **[README.md](./README.md)** - Overview and architecture comparison
 - **[README_PRODUCTION.md](./README_PRODUCTION.md)** - Production architecture
 - **[whatsapp-driver-architecture-MVP.excalidraw](./whatsapp-driver-architecture-MVP.excalidraw)** - Visual diagram
-- **[n8n-workflow-mvp.json](./n8n-workflow-mvp.json)** - Working prototype
+- **[n8n-workflow-mvp.json](./n8n-workflow-mvp.json)** - Working n8n MVP workflow
+- **[MVP-FLOW.jpg](./MVP-FLOW.jpg)** - MVP flow diagram
+- **[n8n-workflow-mvp.jpg](./n8n-workflow-mvp.jpg)** - n8n workflow screenshot with all nodes and guardrails
 
 ---
