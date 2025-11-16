@@ -92,13 +92,10 @@ Open these Excalidraw files at [excalidraw.com](https://excalidraw.com) to view 
 - Intent classification (get_orders, order_details, help, etc.)
 - Function calling for structured API interactions
 - Context-aware follow-up questions
-- Multilingual support
 
 ### Message Persistence
 - All messages saved to PostgreSQL for compliance
-- Complete audit trail (GDPR, SOC 2)
-- Request-response linking
-- Analytics and reporting views
+- Audit trail for all driver interactions
 
 ### Resilience (Production)
 - Circuit breaker pattern for external APIs
@@ -114,7 +111,7 @@ Open these Excalidraw files at [excalidraw.com](https://excalidraw.com) to view 
 **Driver:** "What are my orders today?"
 
 **System Flow:**
-1. Message received via WhatsApp webhook (Evolution API or Twilio)
+1. Message received via WhatsApp
 2. Driver authenticated against database
 3. Message saved for audit trail
 4. OpenRouter (gpt-5-mini) classifies intent
