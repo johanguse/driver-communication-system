@@ -69,7 +69,7 @@ Open these Excalidraw files at [excalidraw.com](https://excalidraw.com) to view 
 
 ### Choose Production if:
 - You have 50+ drivers (or will soon)
-- You need very high uptime
+- You need high uptime
 - You're handling critical operations
 - You have compliance requirements (GDPR, SOC 2)
 - You have budget
@@ -87,8 +87,8 @@ Open these Excalidraw files at [excalidraw.com](https://excalidraw.com) to view 
 - Rate limiting (per-driver and global)
 
 ### AI-Powered Conversations
-- OpenRouter with gpt-5-mini for natural language understanding
-- Prompt caching for cost optimization
+- OpenRouter with GPT-5.1 for natural language understanding
+- Prompt caching for cost optimization (40-64% savings)
 - Intent classification (get_orders, order_details, help, etc.)
 - Function calling for structured API interactions
 - Context-aware follow-up questions
