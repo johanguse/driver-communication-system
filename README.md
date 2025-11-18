@@ -87,7 +87,7 @@ Open these Excalidraw files at [excalidraw.com](https://excalidraw.com) to view 
 - Rate limiting (per-driver and global)
 
 ### AI-Powered Conversations
-- OpenRouter with GPT-5.1 for natural language understanding
+- OpenRouter with GPT-5.1-mini for natural language understanding
 - Prompt caching for cost optimization (40-64% savings)
 - Intent classification (get_orders, order_details, help, etc.)
 - Function calling for structured API interactions
