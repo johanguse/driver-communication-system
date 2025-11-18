@@ -48,9 +48,9 @@ A distributed, queue-based architecture that keeps the WhatsApp driver assistant
 **Trade-offs:** Another managed service to operate, but the LLM cost savings and rate-limiting precision offset the overhead.
 
 ### 6. Circuit Breaker & Resilience Patterns
-**Decision:** Wrap APP API calls with the `opossum` circuit breaker plus retry/backoff logic.  
-**Why:** The logistics SaaS can exhibit slowdowns or outages. The breaker isolates that risk, fails fast, and allows cached fallbacks so queues do not pile up. This is the main difference between MVP and production; removing it would contradict the 99.9% target.  
-**Configuration Highlights:** timeout threshold, error percentage threshold, reset timeout, fallback to Redis cache when open.
+**Decision:** Wrap APP API calls with `@fastify/circuit-breaker` plugin.
+**Why:** The logistics SaaS can exhibit slowdowns or outages. The breaker isolates that risk, fails fast, and allows cached fallbacks so queues do not pile up. This is the main difference between MVP and production.
+**Configuration:** timeout threshold, error percentage threshold, reset timeout, fallback to Redis cache when open.
 
 ### 7. PostgreSQL (Audit & Compliance)
 **Decision:** Keep PostgreSQL (RDS) as the source of truth for drivers, messages, responses, guardrail events, and audit logs.  
