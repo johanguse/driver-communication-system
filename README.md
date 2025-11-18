@@ -31,11 +31,11 @@ This project provides **two distinct architectural approaches** to suit differen
 
 
 
-📖 **[See Production Architecture →](./README_PRODUCTION.md)**
+**[See Production Architecture →](./README_PRODUCTION.md)**
 
 ---
 
-## 📋 Architecture Comparison
+## Architecture Comparison
 
 | Factor | MVP | Production |
 |--------|-----|------------|
@@ -49,7 +49,7 @@ This project provides **two distinct architectural approaches** to suit differen
 
 ---
 
-## 🎨 Visual Diagrams
+## Visual Diagrams
 
 Open these Excalidraw files at [excalidraw.com](https://excalidraw.com) to view the interactive architecture diagrams:
 
