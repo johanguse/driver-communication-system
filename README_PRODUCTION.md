@@ -11,8 +11,8 @@ A distributed, queue-based architecture that keeps the WhatsApp driver assistant
 
 ![Production Flow](./PRODUCTION-FLOW.jpg)
 
-**Flow (26 steps grouped into 7 phases):**
-1. **Message reception & authentication (1-8):** Driver sends WhatsApp message to Meta Business API. Meta forwards webhook to load balancer (ALB/NGINX) that routes to Fastify instances. Verify webhook signatures, authenticate driver, record message in PostgreSQL, return 200 OK immediately.
+**Flow:**
+1. **Message reception & authentication:** Driver sends WhatsApp message to Meta Business API. Meta forwards webhook to load balancer (ALB/NGINX) that routes to Fastify instances. Verify webhook signatures, authenticate driver, record message in PostgreSQL, return 200 OK immediately.
 2. **Message queuing:** Fastify webhook handler enqueues message to RabbitMQ incoming queue with durable queues and DLQs, decoupling ingress from processing.
 3. **Context & preparation:** Workers pull from queue, retrieve conversation context from Redis, authenticate driver against PostgreSQL, enforce rate limits via Redis, run input guardrails via Guardrails Service.
 4. **AI processing:** OpenRouter (GPT-4) performs intent classification and response generation via function calling.
@@ -71,6 +71,48 @@ A distributed, queue-based architecture that keeps the WhatsApp driver assistant
 
 ---
 
+## Supported Driver Actions
+
+**Core Interactions:**
+
+1. **Morning check-in:** 09:00 broadcast with personalized summary and "Reply 1 to accept or 2 to decline".
+   - Triggered via scheduled job or external system
+   - Personalized based on driver history and preferences
+   - Includes route summary, weather, and important notices
+
+2. **Accept all deliveries:** AI interprets acceptance, fetches today's orders, generates a short route summary, sends confirmation, and logs it.
+   - Natural language processing for variations ("yes", "ok", "1", "accept", etc.)
+   - Real-time integration with Logistics SaaS API
+   - Automatic route optimization suggestions
+   - Audit trail in PostgreSQL
+
+3. **Decline route:** AI classifies decline, notifies dispatch via webhook/email, replies to the driver, and records the decline reason.
+   - Reason extraction from driver message
+   - Immediate escalation to dispatch system
+   - Alternative driver assignment triggers
+   - Compliance tracking for labor regulations
+
+4. **Status updates:** Driver can send delivery status updates throughout the day.
+   - "Delivered to [location]"
+   - "Problem at stop X"
+   - "Running late due to traffic"
+   - AI extracts key information and updates logistics system
+
+5. **Help requests:** Natural language queries about deliveries, routes, or policies.
+   - "What's the address for order 123?"
+   - "How many stops left?"
+   - "What's the customer phone number?"
+   - Context-aware responses with rate limiting
+
+**Production Enhancements:**
+- **Multi-language support:** Automatic language detection and response
+- **Voice note transcription:** Process WhatsApp voice messages (via external service)
+- **Location sharing:** Process shared locations for POD (Proof of Delivery)
+- **Image processing:** Handle delivery photos and documents
+- **Proactive notifications:** Traffic alerts, weather warnings, route changes
+
+---
+
 ## AI Integration Strategy
 
 **See [Main README - AI Integration](./README.md#ai-integration-openrouter-with-gpt-55) for shared details.**
@@ -96,11 +138,108 @@ A distributed, queue-based architecture that keeps the WhatsApp driver assistant
 
 ---
 
+## Monitoring & Observability
+
+### Metrics Collection
+**Decision:** Implement comprehensive monitoring using Datadog/CloudWatch/Grafana/New Relic.  
+**Why:** Production requires real-time visibility into system health, performance bottlenecks, and business metrics.
+
+**Key Metrics:**
+- **System Metrics:**
+  - Queue depth (RabbitMQ incoming/outgoing)
+  - Worker pool utilization and throughput
+  - Response times (P50, P95, P99)
+  - Error rates by component
+  - Circuit breaker state changes
+  - Database connection pool status
+
+- **Business Metrics:**
+  - Messages processed per minute/hour
+  - Driver acceptance/decline rates
+  - AI token usage and costs
+  - Cache hit rates (Redis)
+  - Delivery success rates
+  - Response time to drivers
+
+- **Infrastructure Metrics:**
+  - CPU/Memory usage per service
+  - Network latency between components
+  - Disk I/O for databases
+  - Container/pod health
+  - Auto-scaling events
+
+### Alerting Strategy
+**Critical Alerts (PagerDuty):**
+- Queue depth > 1000 messages
+- Circuit breaker open for > 5 minutes
+- Error rate > 5% for 2 minutes
+- Database connection failures
+- Meta WhatsApp API authentication failures
+
+**Warning Alerts (Slack/Email):**
+- Queue depth > 500 messages
+- Cache hit rate < 70%
+- AI response time > 3 seconds
+- Worker memory usage > 80%
+- Unusual decline rates
+
+### Logging Architecture
+**Centralized Logging (ELK Stack or CloudWatch Logs):**
+- Structured JSON logs from all services
+- Correlation IDs for request tracing
+- Log levels: ERROR, WARN, INFO, DEBUG
+- Retention: 30 days hot, 1 year cold storage
+- PII masking in logs
+
+### Distributed Tracing
+**OpenTelemetry Integration:**
+- End-to-end request tracing
+- Latency breakdown by component
+- Dependency mapping
+- Performance bottleneck identification
+
+### Dashboards
+**Real-time Dashboards:**
+1. **Operations Dashboard:** System health, queue status, error rates
+2. **Business Dashboard:** Driver metrics, message volumes, SLA compliance
+3. **Cost Dashboard:** AI token usage, infrastructure costs, cache effectiveness
+4. **Security Dashboard:** Authentication failures, rate limit violations, guardrail triggers
+
+---
+
 ## Automation & Prototyping
 
-- **n8n workflow:** 39 nodes mirroring production flow for testing new intents and policies
-- **Why n8n:** Self-hosted, native Redis/RabbitMQ support, built-in guardrails, no per-step billing
-- **Path:** Prototype in n8n → translate to Fastify plugins → deploy with same infrastructure
+### Development & Testing Only
+- **n8n workflow:** mirroring production flow for testing new intents and policies
+- **Why n8n for prototyping:** Self-hosted, visual workflow builder, quick iteration, native integrations
+- **Path:** Prototype in n8n → translate to production code → deploy with real infrastructure
+
+### Production Alternatives to n8n
+
+**For Scheduled Jobs (Morning Check-ins):**
+- **AWS EventBridge + Lambda:** Serverless cron jobs for broadcasts
+- **Kubernetes CronJobs:** If running on K8s
+- **Bull/BullMQ:** Node.js queue with scheduling built on Redis
+- **Apache Airflow:** For complex scheduling dependencies
+
+**For Workflow Orchestration:**
+- **Temporal:** Durable execution framework, better for production workflows
+- **AWS Step Functions:** Managed state machines for complex flows
+- **Camunda:** BPMN-based workflow engine with better governance
+- **Custom TypeScript/Fastify:** Direct implementation for better performance
+
+**Why NOT n8n in Production:**
+- Performance overhead vs native code
+- Additional infrastructure to maintain
+- Potential single point of failure
+- Less control over error handling
+- Visual workflows harder to version control
+
+**Recommended Production Approach:**
+1. Use n8n for rapid prototyping and testing new flows
+2. Implement proven flows in TypeScript/Fastify workers
+3. Use specialized tools for specific needs (cron, queues, etc.)
+4. Keep n8n instance for business user experimentation only
 
 
 ## Summary
