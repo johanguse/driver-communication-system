@@ -7,18 +7,18 @@ A distributed, queue-based architecture that keeps the WhatsApp driver assistant
 
 ## Architecture Overview
 
-**Visual Diagram:** `whatsapp-driver-architecture.excalidraw`
+**Visual Diagram:** `whatsapp-driver-architecture-PRODUCTION.excalidraw`
 
-![MVP Flow](./PRODUCTION-FLOW.jpg)
+![Production Flow](./PRODUCTION-FLOW.jpg)
 
 **Flow (26 steps grouped into 7 phases):**
-1. **Message reception & authentication (1-8):** Driver sends WhatsApp message to Meta Business API. Webhook forwards to load balancer (ALB/NGINX) that routes to Fastify instances. Verify signatures, authenticate driver, record message, return 200 OK immediately.
-2. **Message queuing (9-10):** Webhook enqueues to RabbitMQ with durable queues and DLQs, decoupling ingress from processing.
-3. **Context & preparation (11-14):** Workers pull from queue, retrieve context from Redis, authenticate against PostgreSQL, enforce rate limits, run input guardrails.
-4. **AI processing (15-16):** OpenRouter (GPT-5.1 mini) performs intent classification via function calling.
-5. **Data retrieval (17-19):** Worker fetches data from SaaS API through circuit breaker with fallback to cached data.
-6. **Response generation (20-23):** Format for WhatsApp, cache in Redis, store in PostgreSQL, run output guardrails.
-7. **Message delivery (24-26):** Delivery worker sends via Meta API, records status, updates monitoring.
+1. **Message reception & authentication (1-8):** Driver sends WhatsApp message to Meta Business API. Meta forwards webhook to load balancer (ALB/NGINX) that routes to Fastify instances. Verify webhook signatures, authenticate driver, record message in PostgreSQL, return 200 OK immediately.
+2. **Message queuing:** Fastify webhook handler enqueues message to RabbitMQ incoming queue with durable queues and DLQs, decoupling ingress from processing.
+3. **Context & preparation:** Workers pull from queue, retrieve conversation context from Redis, authenticate driver against PostgreSQL, enforce rate limits via Redis, run input guardrails via Guardrails Service.
+4. **AI processing:** OpenRouter (GPT-4) performs intent classification and response generation via function calling.
+5. **Data retrieval:** Worker fetches data from Logistics SaaS API through circuit breaker with fallback to cached data in Redis.
+6. **Response generation:** Format response for WhatsApp, cache in Redis, store in PostgreSQL for audit, run output guardrails.
+7. **Message delivery:** Enqueue to outgoing RabbitMQ queue, Delivery worker pulls and sends via Meta API, records delivery status, updates monitoring.
 
 ---
 
@@ -41,7 +41,7 @@ A distributed, queue-based architecture that keeps the WhatsApp driver assistant
 
 ### 4. RabbitMQ Message Backbone
 **Decision:** Route every inbound and outbound message through RabbitMQ (Amazon MQ).  
-**Why:** Guarantees message durability, supports consumer acknowledgements, retries with exponential backoff, priority queues, and DLQs for manual inspection. Twilio receives a fast ACK because processing continues asynchronously.  
+**Why:** Guarantees message durability, supports consumer acknowledgements, retries with exponential backoff, priority queues, and DLQs for manual inspection. Meta WhatsApp API receives a fast ACK because processing continues asynchronously.  
 **Alternatives:** AWS SQS (less flexible fan-out patterns) or Kafka (overkill, heavier ops). RabbitMQ keeps latency low and offers the exact semantics we need.
 
 ### 5. Redis for Context, Rate Limits, and Caching
@@ -73,10 +73,10 @@ A distributed, queue-based architecture that keeps the WhatsApp driver assistant
 
 ## AI Integration Strategy
 
-**See [Main README - AI Integration](./README.md#ai-integration-openrouter-with-gpt-51) for shared details.**
+**See [Main README - AI Integration](./README.md#ai-integration-openrouter-with-gpt-55) for shared details.**
 
 **Production-Specific:**
-- **Model:** OpenRouter GPT-5.1 for intent classification and response generation
+- **Model:** OpenRouter GPT-4 for intent classification and response generation
 - **Prompt caching:** Automatic caching reduces input costs (system prompt + functions)
 - **Provider routing:** Environment flag toggles single-provider (caching) vs multi-provider (failover)
 - **Redis response cache:** Caches repeated queries (intent + parameters hash)
@@ -120,5 +120,5 @@ A distributed, queue-based architecture that keeps the WhatsApp driver assistant
 
 - **[README.md](./README.md)** – Overview and architecture comparison
 - **[README_MVP.md](./README_MVP.md)** – MVP architecture
-- **[whatsapp-driver-architecture.excalidraw](./whatsapp-driver-architecture.excalidraw)** – Production diagram
+- **[whatsapp-driver-architecture-PRODUCTION.excalidraw](./whatsapp-driver-architecture-PRODUCTION.excalidraw)** – Production diagram
 
