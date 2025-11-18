@@ -9,6 +9,8 @@ A distributed, queue-based architecture that keeps the WhatsApp driver assistant
 
 **Visual Diagram:** `whatsapp-driver-architecture.excalidraw`
 
+![MVP Flow](./PRODUCTION-FLOW.jpg)
+
 **Flow (26 steps grouped into 7 phases):**
 1. **Message reception & authentication (1-8):** Driver sends WhatsApp message to Meta Business API. Webhook forwards to load balancer (ALB/NGINX) that routes to Fastify instances. Verify signatures, authenticate driver, record message, return 200 OK immediately.
 2. **Message queuing (9-10):** Webhook enqueues to RabbitMQ with durable queues and DLQs, decoupling ingress from processing.
